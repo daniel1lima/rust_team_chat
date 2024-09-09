@@ -1,0 +1,26 @@
+{
+"expo_push_token": "ExponentPushToken[oM6EirKPUKfjBHuf-yQfu8]",
+"fcm_credentials": {
+"fcm": {
+"name": "projects/rust-companion-app/registrations/cqwRLBUwcLLGHQuSG0wPv4:APA91bEXrmdWk7HAh-R_Mo8rKFpjvnC2zmu6G4hsrfOAeifs_i2OHI6kx0OZ4gK5OmIYNaHXhCnoqsvL5bhIKaz6jx76nZx3W3NiH9mcRbhh6N3IHtPJKDGzE2Nv07sewPIJy7zcj5Bt",
+"token": "cqwRLBUwcLLGHQuSG0wPv4:APA91bEXrmdWk7HAh-R_Mo8rKFpjvnC2zmu6G4hsrfOAeifs_i2OHI6kx0OZ4gK5OmIYNaHXhCnoqsvL5bhIKaz6jx76nZx3W3NiH9mcRbhh6N3IHtPJKDGzE2Nv07sewPIJy7zcj5Bt",
+"web": {
+"auth": "gdOPkJtzSWZ7lZKfaytTAg",
+"endpoint": "https://fcm.googleapis.com/fcm/send/d6Cfs8BxLng:APA91bGJ1di0JU6YjtjujLluNByjaYKPWtPB_shJcvqFSHqqQbzeJtrP3aLofMdIMCQ-qgvsydVboPrczHG-1FSrkPAAYVRmtQ1AiulhbRVsCZrU33jQqiXq9Y1iJH9oq-maZVRGHreT",
+"p256dh": "BC_0TKgovpNfcHRPrO9dLEO1MiWQcRHOZEc9SisdRqtvQEOw4GYyV3_HQj9qj8ceSpx_92quRwdzkn8zMtxC6vI"
+}
+},
+"gcm": {
+"androidId": "4975382104780363007",
+"appId": 976529667804,
+"securityToken": "898617199821661133",
+"token": "d6Cfs8BxLng:APA91bGJ1di0JU6YjtjujLluNByjaYKPWtPB_shJcvqFSHqqQbzeJtrP3aLofMdIMCQ-qgvsydVboPrczHG-1FSrkPAAYVRmtQ1AiulhbRVsCZrU33jQqiXq9Y1iJH9oq-maZVRGHreT"
+},
+"keys": {
+"private": "MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQg0sn27K9s_2vyyBj8PykvyZCdtabp5_COf7GdQ0XeyX-hRANCAAQv9EyoKL6TX3B0T6zvXSxDtTIlkHERzmRHPUorHUarb0BDsOBmMld_x0I_ao_HHkqcf_dqrkcHc5J_MzLcQury",
+"public": "BC_0TKgovpNfcHRPrO9dLEO1MiWQcRHOZEc9SisdRqtvQEOw4GYyV3_HQj9qj8ceSpx_92quRwdzkn8zMtxC6vI",
+"secret": "gdOPkJtzSWZ7lZKfaytTAg"
+}
+},
+"rustplus_auth_token": "eyJzdGVhbUlkIjoiNzY1NjExOTgwNjQxNDYzMzUiLCJ2ZXJzaW9uIjowLCJpc3MiOjE3MjU4NDU0MzEsImV4cCI6MTcyNzA1NTAzMX0=.ZHyUXn1cjdHOF2ymLq79dzu1M8JWyCbz26ww3mPLSwfv/+V4mAZB+lUyCmrJ6vVFSCtArxccfX2PLMY05Xp6DA=="
+}
