@@ -1,7 +1,9 @@
 import requests
 import json
 import asyncio
-from rustplus import RustSocket, ServerDetails, Command, ChatCommand, CommandOptions
+from rustplus import RustSocket, ServerDetails, ChatCommand, CommandOptions
+from rustplus.commands.chat_command import ChatCommandTime
+from rustplus import EntityEventPayload, TeamEventPayload, ChatEventPayload, ProtobufEvent, ChatEvent, EntityEvent, TeamEvent
 
 def register():
     auth = "eyJzdGVhbUlkIjoiNzY1NjExOTgwNjQxNDYzMzUiLCJ2ZXJzaW9uIjowLCJpc3MiOjE3MjU4NDkwMTgsImV4cCI6MTcyNzA1ODYxOH0=.Atp6/JjUbuiz9rUCCF8feo0amncWw5mJh67+46yTpxuSgQLVMxpaDXB5NzyxnGpMY8x+WjzYF1eF5a+k5WJUCQ=="
@@ -43,29 +45,51 @@ steamId, playerToken, ip, port = register()
 
 
 server_details = ServerDetails(ip, port, steamId, playerToken)
-socket = RustSocket(server_details)
+socket = RustSocket(server_details, debug=False)
 
-@Command(server_details,  aliases=['promote', 'lead', 'leader'])
-async def promote(command : ChatCommand): 
+# New command system
+commands = {}
+
+def register_command(name, aliases=None):
+    def decorator(func):
+        commands[name] = func
+        if aliases:
+            for alias in aliases:
+                commands[alias] = func
+        return func
+    return decorator
+
+# Convert existing commands to use the new system
+@register_command('promote', aliases=['lead', 'leader'])
+async def promote(command: ChatCommand):
     sender_steam_id = command.sender_steam_id
-    await socket.promote_to_team_leader(sender_steam_id)
-    await socket.send_team_message(f"Promoted {sender_steam_id} to team leader")
-    
-@Command(server_details,  aliases=['info', 'pop', 'serverinfo'])
-async def info(command : ChatCommand): 
+    try:
+        response = await socket.promote_to_team_leader(sender_steam_id)
+        if response:
+            await socket.send_team_message(f"Promoted {sender_steam_id} to team leader")
+        else:
+            await socket.send_team_message(f"Failed to promote {sender_steam_id}")
+    except Exception as e:
+        await socket.send_team_message(f"Failed to promote {sender_steam_id}: {str(e)}")
 
-        
+
+@register_command('info', aliases=['pop', 'serverinfo'])
+async def info(command: ChatCommand):
     rustinfo = await socket.get_info()
-    await socket.send_team_message(f"Server Info:")
-    await socket.send_team_message(f"URL: {rustinfo.url}")
-    await socket.send_team_message(f"Name: {rustinfo.name}")
-    await socket.send_team_message(f"Map: {rustinfo.map}")
-    await socket.send_team_message(f"Size: {rustinfo.size}")
-    await socket.send_team_message(f"Players: {rustinfo.players}")
-    await socket.send_team_message(f"Max Players: {rustinfo.max_players}")
-    await socket.send_team_message(f"Queued Players: {rustinfo.queued_players}")
-    await socket.send_team_message(f"Seed: {rustinfo.seed}")
-
+    message_part1 = (
+        f"Server Info:  "
+        f"URL: {rustinfo.url}   "
+        f"Name: {rustinfo.name}   "
+        f"Size: {rustinfo.size}   "
+    )
+    message_part2 = (
+        f"Players: {rustinfo.players}   "
+        f"Max Players: {rustinfo.max_players}   "
+        f"Queued Players: {rustinfo.queued_players}   "
+        f"Seed: {rustinfo.seed}"
+    )
+    await socket.send_team_message(message_part1)
+    await socket.send_team_message(message_part2)
 
 BASE_URL = 'https://0f0lrr2w6d.execute-api.us-west-1.amazonaws.com/api'
 
@@ -79,111 +103,116 @@ async def api_request(endpoint, params=None):
         print(f"API request error: {error}")
         return None
 
-@Command(server_details, aliases=['item'])
+@register_command('item')
 async def get_item(command: ChatCommand):
-    _, *args = command.message.split()
+    print(command.args)
+    args = command.args
     if not args:
         await socket.send_team_message("Please provide an item name or ID.")
         return
     
     item_query = ' '.join(args)
-    params = {'name': {'CONTAINS': item_query}}
-    data = await api_request('items', params)
+    params = {
+    'filters': json.dumps({
+        'name': {'column': 'name', 'comparator': 'CONTAINS', 'value': item_query}
+    }),
+    'orderBy': json.dumps([{'order1': {'column': 'name', 'descending': False}}]),
+    'limit': '5'
+    }
+    data = await api_request('items')
     
-    if data and data['items']:
-        item = data['items'][0]
-        message = f"Item: {item['name']} (ID: {item['id']})\n"
-        message += f"Stack size: {item['stack_size']}, Despawn time: {item['despawn_time']}s\n"
-        message += f"Projectile weapon: {item['is_projectile_weapon']}, Melee weapon: {item['is_melee_weapon']}\n"
-        message += f"Deployable: {item['is_deployable']}, Consumable: {item['is_consumable']}"
-        await socket.send_team_message(message)
+    if data:
+        item = data[0]
+        message_part1 = f"Item: {item['name']} (ID: {item['id']})   "
+        message_part1 += f"Stack size: {item['stack_size']}, Despawn time: {item['despawn_time']}s   "
+        
+        message_part2 = f"Projectile weapon: {item['is_projectile_weapon']}, Melee weapon: {item['is_melee_weapon']}   "
+        message_part2 += f"Deployable: {item['is_deployable']}, Consumable: {item['is_consumable']}"
+        
+        await socket.send_team_message(message_part1)
+        await socket.send_team_message(message_part2)
     else:
         await socket.send_team_message(f"No item found matching '{item_query}'.")
 
-@Command(server_details, aliases=['craft'])
+@register_command('craft')
 async def get_craft(command: ChatCommand):
-    _, *args = command.message.split()
-    if not args:
+    if not command.args:
         await socket.send_team_message("Please provide an item name to get crafting info.")
         return
     
-    item_query = ' '.join(args)
-    params = {'result_item': {'CONTAINS': item_query}}
-    data = await api_request('craft', params)
+    item_query = ' '.join(command.args)
+    params = {'filters': json.dumps({'name': {'column': 'name', 'comparator': 'CONTAINS', 'value': item_query}})}
+    data = await api_request('craft')
     
     if data and data['recipes']:
         recipe = data['recipes'][0]
-        message = f"Crafting recipe for {recipe['result_item']} (x{recipe['result_amount']}):\n"
+        message = f"Crafting recipe for {recipe['result_item']} (x{recipe['result_amount']}):   "
         for ingredient, amount in recipe['ingredients'].items():
-            message += f"- {ingredient}: {amount}\n"
+            message += f"- {ingredient}: {amount}   "
         await socket.send_team_message(message)
     else:
         await socket.send_team_message(f"No crafting recipe found for '{item_query}'.")
 
-@Command(server_details, aliases=['durability'])
+@register_command('durability')
 async def get_durability(command: ChatCommand):
-    _, *args = command.message.split()
-    if not args:
+    if not command.args:
         await socket.send_team_message("Please provide an item name to get durability info.")
         return
     
-    item_query = ' '.join(args)
+    item_query = ' '.join(command.args)
     params = {'tool': {'CONTAINS': item_query}}
-    data = await api_request('durability', params)
+    data = await api_request('durability')
     
     if data and data['durability']:
         dur = data['durability'][0]
-        message = f"Durability info for {dur['tool']}:\n"
-        message += f"Type: {dur['durability_type']}, Category: {dur['category']}\n"
-        message += f"Quantity: {dur['quantity']}, Time: {dur['time']}s\n"
+        message = f"Durability info for {dur['tool']}:   "
+        message += f"Type: {dur['durability_type']}, Category: {dur['category']}   "
+        message += f"Quantity: {dur['quantity']}, Time: {dur['time']}s   "
         message += f"Fuel: {dur['fuel']}, Sulfur: {dur['sulfur']}"
         await socket.send_team_message(message)
     else:
         await socket.send_team_message(f"No durability info found for '{item_query}'.")
 
-@Command(server_details, aliases=['loot'])
+@register_command('loot')
 async def get_loot(command: ChatCommand):
-    _, *args = command.message.split()
-    if not args:
+    if not command.args:
         await socket.send_team_message("Please provide a container name to get loot info.")
         return
     
-    container_query = ' '.join(args)
+    container_query = ' '.join(command.args)
     params = {'container': {'EQUALS': container_query}}
     data = await api_request('loot', params)
     
     if data and data['loot']:
-        message = f"Loot table for {container_query}:\n"
+        message = f"Loot table for {container_query}:   "
         for item in data['loot'][:5]:  # Limit to 5 items to avoid long messages
-            message += f"- {item['item']}: {item['chance']}% chance, Amount: {item['amount']}\n"
+            message += f"- {item['item']}: {item['chance']}% chance, Amount: {item['amount']}   "
         await socket.send_team_message(message)
     else:
         await socket.send_team_message(f"No loot info found for '{container_query}'.")
 
-@Command(server_details, aliases=['recycle'])
+@register_command('recycle')
 async def get_recycle(command: ChatCommand):
-    _, *args = command.message.split()
-    if not args:
+    if not command.args:
         await socket.send_team_message("Please provide an item name to get recycling info.")
         return
     
-    item_query = ' '.join(args)
+    item_query = ' '.join(command.args)
     params = {'recycler_name': {'CONTAINS': item_query}}
     data = await api_request('recycle', params)
     
     if data and data['recycle']:
         recycle = data['recycle'][0]
-        message = f"Recycling info for {recycle['recycler_name']}:\n"
-        message += f"Efficiency: {recycle['efficiency']}%\n"
-        message += "Yield:\n"
+        message = f"Recycling info for {recycle['recycler_name']}:   "
+        message += f"Efficiency: {recycle['efficiency']}%   "
+        message += "Yield:   "
         for item, amount in recycle['yield'].items():
-            message += f"- {item}: {amount}\n"
+            message += f"- {item}: {amount}   "
         await socket.send_team_message(message)
     else:
         await socket.send_team_message(f"No recycling info found for '{item_query}'.")
 
-# Add the following code at the end of the file
-
+# Modify the main function and chat event listener
 async def main():
     try:
         options = CommandOptions(prefix="!") # Use whatever prefix you want here
@@ -191,27 +220,42 @@ async def main():
         await socket.connect() 
         print("Connected successfully!")
 
-
         await socket.send_team_message("Bot is online")
 
-        chat = await socket.get_team_chat()
+        @ChatEvent(server_details)
+        async def chat(event: ChatEventPayload):
+            print(f"{event.message.name}: {event.message.message}")
+            
+            # Check if the message is a command
+            if event.message.message.startswith(options.prefix):
+                parts = event.message.message[len(options.prefix):].split()
+                command_name = parts[0].lower()
+                args = parts[1:]
+                
+                if command_name in commands:
+                    # Create a ChatCommandTime instance
+                    print(event.message)
+                    command_time = ChatCommandTime(
+                        formatted_time=event.message.time,
+                        raw_time=event.message.time
+                    )
+                    
+                    # Create a ChatCommand instance with the correct parameters
+                    command = ChatCommand(
+                        sender_name=event.message.name,
+                        sender_steam_id=event.message.steam_id,
+                        time=command_time,
+                        command=command_name,
+                        args=args
+                    )
+                    await commands[command_name](command)
+                else:
+                    await socket.send_team_message(f"Unknown command: {command_name}")
 
-        for message in chat:
-            print(message.message)
-
+        await socket.hang()
         
-        @Command(server_details)
-        async def hi(command : ChatCommand): 
-            await socket.send_team_message(f"Hi, {command.sender_name}")
-        
-        # Keep the connection alive
-        while True:
-            await asyncio.sleep(1)
     except Exception as e:
         print(f"An error occurred: {e}")
-    finally:
-        await socket.disconnect()
-        print("Disconnected from Rust server.")
 
 if __name__ == "__main__":
     asyncio.run(main())
